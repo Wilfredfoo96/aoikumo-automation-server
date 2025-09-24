@@ -258,28 +258,173 @@ class AutomationServer {
       }
 
       // Step 8: Select payment method
-      const paymentSelect = await this.page.$('#paymentInput')
-      if (paymentSelect) {
-        await paymentSelect.selectOption('RENEWAL')
+      console.log('Looking for payment method selector...')
+      
+      // Wait for payment select to be visible and enabled
+      try {
+        await this.page.waitForSelector('#paymentInput', { 
+          state: 'visible',
+          timeout: 10000 
+        })
+        console.log('Found payment input, selecting RENEWAL...')
+        await this.page.selectOption('#paymentInput', 'RENEWAL')
+        console.log('Payment method selected successfully')
+      } catch (error) {
+        console.log('Payment input not found or not visible, trying alternative selectors...')
+        
+        const paymentSelectors = [
+          'select[name*="payment"]',
+          'select[id*="payment"]',
+          'select[class*="payment"]',
+          'select option[value*="RENEWAL"]',
+          'select option[value*="renewal"]'
+        ]
+        
+        let paymentFound = false
+        for (const selector of paymentSelectors) {
+          try {
+            console.log(`Trying payment selector: ${selector}`)
+            await this.page.waitForSelector(selector, { 
+              state: 'visible',
+              timeout: 5000 
+            })
+            console.log(`Found payment element with selector: ${selector}`)
+            
+            if (selector.includes('option')) {
+              // If it's an option, click it
+              await this.page.click(selector)
+            } else {
+              // If it's a select, select the option
+              await this.page.selectOption(selector, 'RENEWAL')
+            }
+            
+            paymentFound = true
+            break
+          } catch (e) {
+            console.log(`Payment selector ${selector} not found or not visible`)
+          }
+        }
+        
+        if (!paymentFound) {
+          console.log('No payment method found, taking screenshot for debugging...')
+          await this.page.screenshot({ path: '/tmp/debug-payment-selection.png' })
+          console.log('Continuing without payment method selection...')
+        }
       }
 
       // Step 9: Enter payment amount
-      const paymentInput = await this.page.$('input[ng-model="payment.amount"]:not(.ng-hide)')
-      if (paymentInput) {
-        await paymentInput.fill(credentials.paymentAmount)
+      console.log('Looking for payment amount input...')
+      
+      try {
+        await this.page.waitForSelector('input[ng-model="payment.amount"]:not(.ng-hide)', { 
+          state: 'visible',
+          timeout: 10000 
+        })
+        console.log('Found payment amount input, filling with amount...')
+        await this.page.fill('input[ng-model="payment.amount"]:not(.ng-hide)', credentials.paymentAmount)
+        console.log('Payment amount entered successfully')
+      } catch (error) {
+        console.log('Payment amount input not found, trying alternative selectors...')
+        
+        const amountSelectors = [
+          'input[name*="amount"]',
+          'input[id*="amount"]',
+          'input[placeholder*="amount"]',
+          'input[placeholder*="Amount"]',
+          'input[type="number"]',
+          'input[ng-model*="amount"]'
+        ]
+        
+        let amountFound = false
+        for (const selector of amountSelectors) {
+          try {
+            console.log(`Trying amount selector: ${selector}`)
+            await this.page.waitForSelector(selector, { 
+              state: 'visible',
+              timeout: 5000 
+            })
+            console.log(`Found amount input with selector: ${selector}`)
+            await this.page.fill(selector, credentials.paymentAmount)
+            amountFound = true
+            break
+          } catch (e) {
+            console.log(`Amount selector ${selector} not found or not visible`)
+          }
+        }
+        
+        if (!amountFound) {
+          console.log('No payment amount input found, taking screenshot for debugging...')
+          await this.page.screenshot({ path: '/tmp/debug-payment-amount.png' })
+          console.log('Continuing without payment amount input...')
+        }
       }
 
       // Step 10: Handle PIN input
-      const pinInputs = await this.page.$$('input[type="tel"]:not(.ng-hide)')
-      if (pinInputs.length >= 6) {
-        for (let i = 0; i < 6; i++) {
-          const digit = credentials.pin[i] || '0'
-          await pinInputs[i].fill(digit)
-          await this.page.waitForTimeout(100)
-        }
+      console.log('Looking for PIN input fields...')
+      
+      try {
+        await this.page.waitForSelector('input[type="tel"]:not(.ng-hide)', { 
+          state: 'visible',
+          timeout: 10000 
+        })
         
-        // Press Enter after PIN input
-        await this.page.keyboard.press('Enter')
+        const pinInputs = await this.page.$$('input[type="tel"]:not(.ng-hide)')
+        console.log(`Found ${pinInputs.length} PIN input fields`)
+        
+        if (pinInputs.length >= 6) {
+          console.log('Filling PIN input fields...')
+          for (let i = 0; i < 6; i++) {
+            const digit = credentials.pin[i] || '0'
+            await pinInputs[i].fill(digit)
+            await this.page.waitForTimeout(100)
+          }
+          
+          // Press Enter after PIN input
+          console.log('Pressing Enter after PIN input...')
+          await this.page.keyboard.press('Enter')
+          console.log('PIN input completed')
+        } else {
+          console.log('Not enough PIN input fields found, trying alternative selectors...')
+          
+          const pinSelectors = [
+            'input[type="tel"]',
+            'input[type="text"][maxlength="1"]',
+            'input[placeholder*="PIN"]',
+            'input[placeholder*="pin"]',
+            'input[name*="pin"]',
+            'input[id*="pin"]'
+          ]
+          
+          let pinFound = false
+          for (const selector of pinSelectors) {
+            try {
+              const inputs = await this.page.$$(selector)
+              if (inputs.length >= 6) {
+                console.log(`Found ${inputs.length} PIN inputs with selector: ${selector}`)
+                for (let i = 0; i < 6; i++) {
+                  const digit = credentials.pin[i] || '0'
+                  await inputs[i].fill(digit)
+                  await this.page.waitForTimeout(100)
+                }
+                await this.page.keyboard.press('Enter')
+                pinFound = true
+                break
+              }
+            } catch (e) {
+              console.log(`PIN selector ${selector} not found`)
+            }
+          }
+          
+          if (!pinFound) {
+            console.log('No PIN input fields found, taking screenshot for debugging...')
+            await this.page.screenshot({ path: '/tmp/debug-pin-input.png' })
+            console.log('Continuing without PIN input...')
+          }
+        }
+      } catch (error) {
+        console.log('PIN input section not found, taking screenshot for debugging...')
+        await this.page.screenshot({ path: '/tmp/debug-pin-section.png' })
+        console.log('Continuing without PIN input...')
       }
 
       // Step 11: Final sales creation
