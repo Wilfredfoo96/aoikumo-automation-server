@@ -88,6 +88,18 @@ class AutomationServer {
       const pageUrl = this.page.url()
       console.log(`Page loaded: ${pageTitle} at ${pageUrl}`)
       
+      // Debug: Check if we're actually on the right page
+      if (!pageUrl.includes('createnewsales')) {
+        console.log('⚠️ WARNING: Not on the create sales page!')
+        console.log('Current URL:', pageUrl)
+        console.log('Expected to be on: /sales/createnewsales')
+      }
+      
+      // Debug: Take a screenshot of the current page
+      console.log('Taking screenshot of current page state...')
+      await this.page.screenshot({ path: '/tmp/debug-page-state.png' })
+      console.log('Screenshot saved for debugging')
+      
       // Debug: Log all available select elements
       const selectElements = await this.page.$$('select')
       console.log(`Found ${selectElements.length} select elements on page`)
@@ -196,18 +208,28 @@ class AutomationServer {
       }
       
       // Look for matching option
+      console.log('Looking for customer search results...')
       const options = await this.page.$$('.select2-results__option')
+      console.log(`Found ${options.length} customer options`)
+      
       let nameMatch = false
       let selectedName = ''
       
       for (const option of options) {
         const text = await option.textContent()
+        console.log(`Option text: "${text}"`)
         if (text && text.toLowerCase().includes(credentials.nameToSearch.toLowerCase())) {
+          console.log(`Found matching option: "${text}"`)
           await option.click()
           nameMatch = true
           selectedName = text
           break
         }
+      }
+      
+      if (!nameMatch) {
+        console.log('No matching customer found, taking screenshot...')
+        await this.page.screenshot({ path: '/tmp/debug-customer-search-results.png' })
       }
       
       if (!nameMatch) {
@@ -230,8 +252,24 @@ class AutomationServer {
       }
 
       // Step 6: Select package
-      await this.page.click('#panel_promotion_addItem')
-      await this.page.waitForTimeout(1000)
+      console.log('Looking for package selection button...')
+      try {
+        await this.page.waitForSelector('#panel_promotion_addItem', { 
+          state: 'visible',
+          timeout: 10000 
+        })
+        console.log('Found package selection button, clicking...')
+        await this.page.click('#panel_promotion_addItem')
+        await this.page.waitForTimeout(1000)
+        console.log('Package selection button clicked')
+        
+        // Take screenshot after package selection
+        console.log('Taking screenshot after package selection...')
+        await this.page.screenshot({ path: '/tmp/debug-after-package-selection.png' })
+      } catch (error) {
+        console.log('Package selection button not found:', error.message)
+        await this.page.screenshot({ path: '/tmp/debug-package-selection-error.png' })
+      }
       
       const packageSearchInput = await this.page.$('#sppromotion_filter input[type="search"]')
       if (packageSearchInput) {
