@@ -1,5 +1,0 @@
-[phases.setup]
-nixPkgs = ["glib", "nspr", "nss", "dbus", "atk", "at-spi2-atk", "xorg.libX11", "xorg.libXcomposite", "xorg.libXdamage", "xorg.libXext", "xorg.libXfixes", "xorg.libXrandr", "mesa", "xorg.libxcb", "libxkbcommon", "alsa-lib"]
-
-[phases.install]
-cmds = ["npx playwright install chromium", "npx playwright install-deps"]

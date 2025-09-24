@@ -35,15 +35,8 @@ class AutomationServer {
     if (!this.browser) {
       try {
         console.log('Launching browser on Railway...')
-        
-        // Try to use system Chromium first, fallback to Playwright's Chromium
-        const executablePath = process.env.PUPPETEER_EXECUTABLE_PATH || 
-                              '/usr/bin/chromium-browser' || 
-                              await chromium.executablePath()
-        
         this.browser = await chromium.launch({
           headless: true, // Use headless mode for Railway
-          executablePath: executablePath,
           args: [
             '--no-sandbox',
             '--disable-setuid-sandbox',
@@ -51,9 +44,7 @@ class AutomationServer {
             '--disable-accelerated-2d-canvas',
             '--no-first-run',
             '--no-zygote',
-            '--disable-gpu',
-            '--disable-web-security',
-            '--disable-features=VizDisplayCompositor'
+            '--disable-gpu'
           ]
         })
         this.page = await this.browser.newPage()

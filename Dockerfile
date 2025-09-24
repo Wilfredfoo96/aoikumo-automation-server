@@ -1,39 +1,35 @@
-# Use Node.js 18 Alpine as base image
-FROM node:18-alpine
+FROM node:18-slim
 
-# Install system dependencies required for Playwright
-RUN apk add --no-cache \
-    chromium \
-    nss \
-    freetype \
-    freetype-dev \
-    harfbuzz \
-    ca-certificates \
-    ttf-freefont \
-    && rm -rf /var/cache/apk/*
+# Install system dependencies for Playwright
+RUN apt-get update && apt-get install -y \
+    libglib2.0-0t64 \
+    libnspr4 \
+    libnss3 \
+    libdbus-1-3 \
+    libatk1.0-0t64 \
+    libatk-bridge2.0-0t64 \
+    libatspi2.0-0t64 \
+    libx11-6 \
+    libxcomposite1 \
+    libxdamage1 \
+    libxext6 \
+    libxfixes3 \
+    libxrandr2 \
+    libgbm1 \
+    libxcb1 \
+    libxkbcommon0 \
+    libasound2t64 \
+    && rm -rf /var/lib/apt/lists/*
 
-# Set environment variables
-ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
-ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
-
-# Set working directory
 WORKDIR /app
 
-# Copy package files
 COPY package*.json ./
+RUN npm install
 
-# Install dependencies
-RUN npm ci --only=production
-
-# Install Playwright browsers and dependencies
-RUN npx playwright install chromium
-RUN npx playwright install-deps
-
-# Copy source code
 COPY . .
 
-# Expose port
+RUN npx playwright install chromium
+
 EXPOSE 3001
 
-# Start the application
 CMD ["npm", "start"]
