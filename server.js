@@ -178,39 +178,38 @@ class AutomationServer {
           throw new Error('Search input field not found')
         }
       }
-        
-        // Look for matching option
-        const options = await this.page.$$('.select2-results__option')
-        let nameMatch = false
-        let selectedName = ''
-        
-        for (const option of options) {
-          const text = await option.textContent()
-          if (text && text.toLowerCase().includes(credentials.nameToSearch.toLowerCase())) {
-            await option.click()
-            nameMatch = true
-            selectedName = text
-            break
-          }
+      
+      // Look for matching option
+      const options = await this.page.$$('.select2-results__option')
+      let nameMatch = false
+      let selectedName = ''
+      
+      for (const option of options) {
+        const text = await option.textContent()
+        if (text && text.toLowerCase().includes(credentials.nameToSearch.toLowerCase())) {
+          await option.click()
+          nameMatch = true
+          selectedName = text
+          break
         }
+      }
+      
+      if (!nameMatch) {
+        const availableOptions = await Promise.all(
+          options.map(option => option.textContent())
+        )
         
-        if (!nameMatch) {
-          const availableOptions = await Promise.all(
-            options.map(option => option.textContent())
-          )
-          
-          return {
-            success: true,
-            message: 'Customer search completed, waiting for user selection',
-            timestamp: new Date().toISOString(),
-            nameMatch: false,
-            availableOptions: availableOptions.filter(opt => opt && opt.trim() !== ''),
-            packageMatch: false,
-            paymentMatch: false,
-            salesCreated: false,
-            sheetsUpdated: false,
-            waitingForUserSelection: true
-          }
+        return {
+          success: true,
+          message: 'Customer search completed, waiting for user selection',
+          timestamp: new Date().toISOString(),
+          nameMatch: false,
+          availableOptions: availableOptions.filter(opt => opt && opt.trim() !== ''),
+          packageMatch: false,
+          paymentMatch: false,
+          salesCreated: false,
+          sheetsUpdated: false,
+          waitingForUserSelection: true
         }
       }
 
