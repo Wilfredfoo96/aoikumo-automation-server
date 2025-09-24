@@ -95,6 +95,22 @@ class AutomationServer {
       // Debug: Log all elements with "customer" in id or class
       const customerElements = await this.page.$$('[id*="customer"], [class*="customer"]')
       console.log(`Found ${customerElements.length} elements with "customer" in id or class`)
+      
+      // Debug: Log all elements with "payment" in id or class
+      const paymentElements = await this.page.$$('[id*="payment"], [class*="payment"]')
+      console.log(`Found ${paymentElements.length} elements with "payment" in id or class`)
+      
+      // Debug: Log all elements with "pin" in id or class
+      const pinElements = await this.page.$$('[id*="pin"], [class*="pin"]')
+      console.log(`Found ${pinElements.length} elements with "pin" in id or class`)
+      
+      // Debug: Log all input elements
+      const allInputs = await this.page.$$('input')
+      console.log(`Found ${allInputs.length} total input elements on page`)
+      
+      // Debug: Log all button elements
+      const allButtons = await this.page.$$('button')
+      console.log(`Found ${allButtons.length} total button elements on page`)
 
       // Step 5: Search for customer
       console.log('Looking for customer search container...')
@@ -428,10 +444,57 @@ class AutomationServer {
       }
 
       // Step 11: Final sales creation
-      const finalCreateButton = await this.page.$('.btn.btn-success.createSales')
-      if (finalCreateButton) {
-        await finalCreateButton.click()
+      console.log('Looking for final create sales button...')
+      
+      try {
+        await this.page.waitForSelector('.btn.btn-success.createSales', { 
+          state: 'visible',
+          timeout: 10000 
+        })
+        console.log('Found create sales button, clicking...')
+        await this.page.click('.btn.btn-success.createSales')
         await this.page.waitForTimeout(2000)
+        console.log('Create sales button clicked successfully')
+      } catch (error) {
+        console.log('Create sales button not found, trying alternative selectors...')
+        
+        const createButtonSelectors = [
+          'button[class*="create"]',
+          'button[class*="sales"]',
+          'button[class*="success"]',
+          'input[type="submit"]',
+          'button[type="submit"]',
+          'button:contains("Create")',
+          'button:contains("Submit")',
+          'button:contains("Save")',
+          '.btn-success',
+          '.btn-primary',
+          'button.btn'
+        ]
+        
+        let createFound = false
+        for (const selector of createButtonSelectors) {
+          try {
+            console.log(`Trying create button selector: ${selector}`)
+            await this.page.waitForSelector(selector, { 
+              state: 'visible',
+              timeout: 5000 
+            })
+            console.log(`Found create button with selector: ${selector}`)
+            await this.page.click(selector)
+            await this.page.waitForTimeout(2000)
+            createFound = true
+            break
+          } catch (e) {
+            console.log(`Create button selector ${selector} not found or not visible`)
+          }
+        }
+        
+        if (!createFound) {
+          console.log('No create sales button found, taking screenshot for debugging...')
+          await this.page.screenshot({ path: '/tmp/debug-create-button.png' })
+          console.log('Continuing without clicking create button...')
+        }
       }
 
       return {
