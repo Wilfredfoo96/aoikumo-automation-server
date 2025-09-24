@@ -275,6 +275,26 @@ class AutomationServer {
         const modals = await this.page.$$('.modal, .popup, .overlay, [role="dialog"]')
         console.log(`Found ${modals.length} modals/popups after package selection`)
         
+        // Wait for the modal to be visible and interactable
+        if (modals.length > 0) {
+          console.log('Waiting for modal to become visible...')
+          try {
+            // Wait for any modal to become visible
+            await this.page.waitForSelector('.modal:not(.ng-hide), .popup:not(.ng-hide), [role="dialog"]:not(.ng-hide)', { 
+              state: 'visible', 
+              timeout: 10000 
+            })
+            console.log('Modal is now visible!')
+            
+            // Take screenshot of the visible modal
+            console.log('Taking screenshot of visible modal...')
+            await this.page.screenshot({ path: '/tmp/debug-visible-modal.png' })
+            
+          } catch (error) {
+            console.log('Modal did not become visible:', error.message)
+          }
+        }
+        
         // Take another screenshot after waiting
         console.log('Taking screenshot after waiting for content...')
         await this.page.screenshot({ path: '/tmp/debug-after-waiting.png' })
@@ -359,9 +379,27 @@ class AutomationServer {
       // Step 8: Select payment method
       console.log('Looking for payment method selector...')
       
+      // First check if we're in a modal and wait for it to be visible
+      const visibleModal = await this.page.$('.modal:not(.ng-hide), .popup:not(.ng-hide), [role="dialog"]:not(.ng-hide)')
+      if (visibleModal) {
+        console.log('Found visible modal, looking for payment input inside modal...')
+        // Wait for payment input to be visible in the modal
+        try {
+          await this.page.waitForSelector('.modal #paymentInput:not(.ng-hide), .popup #paymentInput:not(.ng-hide), [role="dialog"] #paymentInput:not(.ng-hide)', { 
+            state: 'visible',
+            timeout: 10000 
+          })
+          console.log('Found payment input in modal, selecting RENEWAL...')
+          await this.page.selectOption('.modal #paymentInput, .popup #paymentInput, [role="dialog"] #paymentInput', 'RENEWAL')
+          console.log('Payment method selected successfully in modal')
+        } catch (modalError) {
+          console.log('Payment input not found in modal, trying main page...')
+        }
+      }
+      
       // Wait for payment select to be visible and enabled
       try {
-        await this.page.waitForSelector('#paymentInput', { 
+        await this.page.waitForSelector('#paymentInput:not(.ng-hide)', { 
           state: 'visible',
           timeout: 10000 
         })
@@ -413,6 +451,23 @@ class AutomationServer {
 
       // Step 9: Enter payment amount
       console.log('Looking for payment amount input...')
+      
+      // First check if we're in a modal and look for amount input there
+      const visibleModal = await this.page.$('.modal:not(.ng-hide), .popup:not(.ng-hide), [role="dialog"]:not(.ng-hide)')
+      if (visibleModal) {
+        console.log('Found visible modal, looking for payment amount input inside modal...')
+        try {
+          await this.page.waitForSelector('.modal input[ng-model="payment.amount"]:not(.ng-hide), .popup input[ng-model="payment.amount"]:not(.ng-hide), [role="dialog"] input[ng-model="payment.amount"]:not(.ng-hide)', { 
+            state: 'visible',
+            timeout: 10000 
+          })
+          console.log('Found payment amount input in modal, filling with amount...')
+          await this.page.fill('.modal input[ng-model="payment.amount"], .popup input[ng-model="payment.amount"], [role="dialog"] input[ng-model="payment.amount"]', credentials.paymentAmount)
+          console.log('Payment amount entered successfully in modal')
+        } catch (modalError) {
+          console.log('Payment amount input not found in modal, trying main page...')
+        }
+      }
       
       try {
         await this.page.waitForSelector('input[ng-model="payment.amount"]:not(.ng-hide)', { 
