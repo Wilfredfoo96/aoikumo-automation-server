@@ -68,7 +68,7 @@ class AutomationServer {
       console.log('Starting automation...')
       
       // Step 1: Navigate to login page
-      await this.page.goto(credentials.accessLink, { waitUntil: 'networkidle2' })
+      await this.page.goto(credentials.accessLink, { waitUntil: 'networkidle' })
       await this.page.waitForTimeout(2000)
 
       // Step 2: Fill login form
@@ -80,7 +80,7 @@ class AutomationServer {
       await this.page.waitForTimeout(3000)
 
       // Step 4: Navigate to sales creation
-      await this.page.goto(`${credentials.accessLink}/sales/createnewsales`, { waitUntil: 'networkidle2' })
+      await this.page.goto(`${credentials.accessLink}/sales/createnewsales`, { waitUntil: 'networkidle' })
       await this.page.waitForTimeout(2000)
 
       // Step 5: Search for customer
