@@ -2,6 +2,14 @@ const express = require('express')
 const { chromium } = require('playwright')
 const cors = require('cors')
 
+// Install Playwright browsers if not already installed
+const { execSync } = require('child_process')
+try {
+  execSync('npx playwright install chromium', { stdio: 'inherit' })
+} catch (error) {
+  console.log('Playwright browser installation failed:', error.message)
+}
+
 const app = express()
 const PORT = process.env.PORT || 3001
 
@@ -25,16 +33,31 @@ class AutomationServer {
 
   async initialize() {
     if (!this.browser) {
-      this.browser = await chromium.launch({
-        headless: false,
-        channel: 'chrome'
-      })
-      this.page = await this.browser.newPage()
-      
-      await this.page.setViewportSize({ width: 1280, height: 720 })
-      await this.page.setExtraHTTPHeaders({
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-      })
+      try {
+        console.log('Launching browser on Railway...')
+        this.browser = await chromium.launch({
+          headless: true, // Use headless mode for Railway
+          args: [
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--disable-dev-shm-usage',
+            '--disable-accelerated-2d-canvas',
+            '--no-first-run',
+            '--no-zygote',
+            '--disable-gpu'
+          ]
+        })
+        this.page = await this.browser.newPage()
+        
+        await this.page.setViewportSize({ width: 1280, height: 720 })
+        await this.page.setExtraHTTPHeaders({
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        })
+        console.log('Browser launched successfully on Railway')
+      } catch (error) {
+        console.error('Failed to launch browser on Railway:', error)
+        throw error
+      }
     }
   }
 
