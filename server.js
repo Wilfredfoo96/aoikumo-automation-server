@@ -266,6 +266,51 @@ class AutomationServer {
         // Take screenshot after package selection
         console.log('Taking screenshot after package selection...')
         await this.page.screenshot({ path: '/tmp/debug-after-package-selection.png' })
+        
+        // Wait a bit more for any modals or content to load
+        console.log('Waiting for content to load after package selection...')
+        await this.page.waitForTimeout(3000)
+        
+        // Check if any modals or popups appeared
+        const modals = await this.page.$$('.modal, .popup, .overlay, [role="dialog"]')
+        console.log(`Found ${modals.length} modals/popups after package selection`)
+        
+        // Take another screenshot after waiting
+        console.log('Taking screenshot after waiting for content...')
+        await this.page.screenshot({ path: '/tmp/debug-after-waiting.png' })
+        
+        // Debug: Check what elements are now visible
+        console.log('Checking for payment elements after package selection...')
+        const paymentElements = await this.page.$$('select, input, button')
+        console.log(`Found ${paymentElements.length} total form elements after package selection`)
+        
+        // Check for specific payment-related elements
+        const paymentSelects = await this.page.$$('select')
+        const paymentInputs = await this.page.$$('input')
+        const paymentButtons = await this.page.$$('button')
+        
+        console.log(`Payment selects: ${paymentSelects.length}`)
+        console.log(`Payment inputs: ${paymentInputs.length}`)
+        console.log(`Payment buttons: ${paymentButtons.length}`)
+        
+        // Log some of the element details
+        for (let i = 0; i < Math.min(5, paymentSelects.length); i++) {
+          const id = await paymentSelects[i].getAttribute('id')
+          const name = await paymentSelects[i].getAttribute('name')
+          const className = await paymentSelects[i].getAttribute('class')
+          const isVisible = await paymentSelects[i].isVisible()
+          console.log(`Select ${i}: id="${id}", name="${name}", class="${className}", visible=${isVisible}`)
+        }
+        
+        // Check for hidden elements that might contain payment fields
+        console.log('Checking for hidden payment elements...')
+        const hiddenElements = await this.page.$$('select[style*="display: none"], input[style*="display: none"], .ng-hide, .hidden')
+        console.log(`Found ${hiddenElements.length} hidden elements`)
+        
+        // Check for elements with payment-related text
+        const paymentTextElements = await this.page.$$('*:has-text("payment"), *:has-text("Payment"), *:has-text("amount"), *:has-text("Amount")')
+        console.log(`Found ${paymentTextElements.length} elements with payment-related text`)
+        
       } catch (error) {
         console.log('Package selection button not found:', error.message)
         await this.page.screenshot({ path: '/tmp/debug-package-selection-error.png' })
