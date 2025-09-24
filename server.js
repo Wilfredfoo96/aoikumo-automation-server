@@ -82,15 +82,102 @@ class AutomationServer {
       // Step 4: Navigate to sales creation
       await this.page.goto(`${credentials.accessLink}/sales/createnewsales`, { waitUntil: 'networkidle' })
       await this.page.waitForTimeout(2000)
+      
+      // Debug: Log page title and URL
+      const pageTitle = await this.page.title()
+      const pageUrl = this.page.url()
+      console.log(`Page loaded: ${pageTitle} at ${pageUrl}`)
+      
+      // Debug: Log all available select elements
+      const selectElements = await this.page.$$('select')
+      console.log(`Found ${selectElements.length} select elements on page`)
+      
+      // Debug: Log all elements with "customer" in id or class
+      const customerElements = await this.page.$$('[id*="customer"], [class*="customer"]')
+      console.log(`Found ${customerElements.length} elements with "customer" in id or class`)
 
       // Step 5: Search for customer
-      await this.page.click('#select2-customer-container')
-      await this.page.waitForTimeout(1000)
+      console.log('Looking for customer search container...')
       
+      // Wait for the page to load and look for customer search elements
+      try {
+        await this.page.waitForSelector('#select2-customer-container', { timeout: 10000 })
+        console.log('Found customer container, clicking...')
+        await this.page.click('#select2-customer-container')
+        await this.page.waitForTimeout(1000)
+      } catch (error) {
+        console.log('Customer container not found, trying alternative selectors...')
+        
+        // Try alternative selectors
+        const alternativeSelectors = [
+          '.select2-container',
+          '[id*="customer"]',
+          '[class*="customer"]',
+          'select[name*="customer"]',
+          '.customer-select',
+          '#customer'
+        ]
+        
+        let found = false
+        for (const selector of alternativeSelectors) {
+          try {
+            console.log(`Trying selector: ${selector}`)
+            await this.page.waitForSelector(selector, { timeout: 5000 })
+            console.log(`Found element with selector: ${selector}`)
+            await this.page.click(selector)
+            await this.page.waitForTimeout(1000)
+            found = true
+            break
+          } catch (e) {
+            console.log(`Selector ${selector} not found`)
+          }
+        }
+        
+        if (!found) {
+          console.log('No customer search element found, taking screenshot for debugging...')
+          await this.page.screenshot({ path: '/tmp/debug-customer-search.png' })
+          throw new Error('Customer search element not found on page')
+        }
+      }
+      
+      console.log('Looking for search input field...')
       const searchInput = await this.page.$('.select2-search__field')
       if (searchInput) {
+        console.log('Found search input, filling with name...')
         await searchInput.fill(credentials.nameToSearch)
         await this.page.waitForTimeout(2000)
+      } else {
+        console.log('Search input not found, trying alternative selectors...')
+        const inputSelectors = [
+          'input[type="search"]',
+          'input[placeholder*="search"]',
+          'input[placeholder*="Search"]',
+          '.search-input',
+          'input[name*="search"]'
+        ]
+        
+        let inputFound = false
+        for (const selector of inputSelectors) {
+          try {
+            const input = await this.page.$(selector)
+            if (input) {
+              console.log(`Found input with selector: ${selector}`)
+              await input.fill(credentials.nameToSearch)
+              await this.page.waitForTimeout(2000)
+              inputFound = true
+              break
+            }
+          } catch (e) {
+            console.log(`Input selector ${selector} not found`)
+          }
+        }
+        
+        if (!inputFound) {
+          console.log('No search input found, taking screenshot for debugging...')
+          await this.page.screenshot({ path: '/tmp/debug-search-input.png' })
+          throw new Error('Search input field not found')
+        }
+      }
         
         // Look for matching option
         const options = await this.page.$$('.select2-results__option')
