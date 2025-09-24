@@ -68,8 +68,8 @@ class AutomationServer {
       console.log('Starting automation...')
       
       // Step 1: Navigate to login page
-      await this.page.goto(credentials.accessLink, { waitUntil: 'networkidle' })
-      await this.page.waitForTimeout(2000)
+      await this.page.goto(credentials.accessLink, { waitUntil: 'domcontentloaded' })
+      await this.page.waitForTimeout(1000)
 
       // Step 2: Fill login form
       await this.page.fill('input[name="username"], input[type="text"]', credentials.username)
@@ -77,11 +77,11 @@ class AutomationServer {
       
       // Step 3: Submit login
       await this.page.click('button[type="submit"], input[type="submit"], .btn-primary')
-      await this.page.waitForTimeout(3000)
+      await this.page.waitForTimeout(2000)
 
       // Step 4: Navigate to sales creation
-      await this.page.goto(`${credentials.accessLink}/sales/createnewsales`, { waitUntil: 'networkidle' })
-      await this.page.waitForTimeout(2000)
+      await this.page.goto(`${credentials.accessLink}/sales/createnewsales`, { waitUntil: 'domcontentloaded' })
+      await this.page.waitForTimeout(1000)
       
       // Debug: Log page title and URL
       const pageTitle = await this.page.title()
