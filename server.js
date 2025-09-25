@@ -453,8 +453,8 @@ class AutomationServer {
       console.log('Looking for payment amount input...')
       
       // First check if we're in a modal and look for amount input there
-      const visibleModal = await this.page.$('.modal:not(.ng-hide), .popup:not(.ng-hide), [role="dialog"]:not(.ng-hide)')
-      if (visibleModal) {
+      const visibleModalForAmount = await this.page.$('.modal:not(.ng-hide), .popup:not(.ng-hide), [role="dialog"]:not(.ng-hide)')
+      if (visibleModalForAmount) {
         console.log('Found visible modal, looking for payment amount input inside modal...')
         try {
           await this.page.waitForSelector('.modal input[ng-model="payment.amount"]:not(.ng-hide), .popup input[ng-model="payment.amount"]:not(.ng-hide), [role="dialog"] input[ng-model="payment.amount"]:not(.ng-hide)', { 
