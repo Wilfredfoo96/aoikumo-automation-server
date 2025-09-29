@@ -541,6 +541,52 @@ class AutomationServer {
       // Step 7: Handle modal and create sales
       await this.page.waitForTimeout(2000)
       
+      // CRITICAL: Handle PIN modal first (it blocks all interactions)
+      console.log('Checking for PIN modal that might be blocking interactions...')
+      const pinModal = await this.page.$('#pinCodeWhenLock, .pin-modal')
+      if (pinModal) {
+        console.log('Found PIN modal that is blocking interactions, handling it first...')
+        
+        try {
+          // Look for PIN input in the modal
+          const pinInput = await pinModal.$('input[type="password"], input[ng-model*="pin"], input[ng-model*="Pin"], input[placeholder*="PIN"], input[placeholder*="pin"]')
+          if (pinInput) {
+            console.log('Found PIN input in modal, filling with PIN...')
+            await pinInput.fill(credentials.pin)
+            console.log('PIN filled successfully')
+            
+            // Press Enter to submit PIN
+            await pinInput.press('Enter')
+            console.log('Enter key pressed for PIN submission')
+            
+            // Wait for modal to close
+            await this.page.waitForTimeout(3000)
+            console.log('PIN modal should be closed now')
+            
+            // Check if PIN modal is still visible
+            const stillVisible = await this.page.$('#pinCodeWhenLock, .pin-modal')
+            if (stillVisible) {
+              console.log('PIN modal still visible, trying to close it with JavaScript...')
+              await this.page.evaluate(() => {
+                const pinModal = document.querySelector('#pinCodeWhenLock, .pin-modal')
+                if (pinModal) {
+                  pinModal.style.display = 'none'
+                  pinModal.classList.remove('show', 'in')
+                  pinModal.classList.add('hide')
+                }
+              })
+              await this.page.waitForTimeout(1000)
+            }
+          } else {
+            console.log('No PIN input found in PIN modal')
+          }
+        } catch (pinError) {
+          console.log('Error handling PIN modal:', pinError.message)
+        }
+      } else {
+        console.log('No PIN modal found, proceeding with normal flow...')
+      }
+      
       // Look for close button first
       const closeButton = await this.page.$('button.close[ng-click="closeItemSelectionModal(); setTab(); checkHasDrugAllergy()"]')
       if (closeButton) {
