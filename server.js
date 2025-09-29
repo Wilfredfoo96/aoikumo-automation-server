@@ -275,6 +275,31 @@ class AutomationServer {
         const modals = await this.page.$$('.modal, .popup, .overlay, [role="dialog"]')
         console.log(`Found ${modals.length} modals/popups after package selection`)
         
+        // Try to find and click the button that opens the modal first
+        console.log('Looking for button that opens the modal...')
+        try {
+          // Look for common modal trigger buttons
+          const modalTriggers = await this.page.$$('button[data-toggle="modal"], button[data-target*="modal"], button[onclick*="modal"], button[ng-click*="modal"], .btn[data-toggle="modal"]')
+          console.log(`Found ${modalTriggers.length} potential modal trigger buttons`)
+          
+          for (const trigger of modalTriggers) {
+            try {
+              const buttonText = await trigger.textContent()
+              const buttonClass = await trigger.getAttribute('class')
+              console.log(`Trying trigger button: "${buttonText}" (${buttonClass})`)
+              
+              await trigger.click()
+              console.log('Modal trigger button clicked')
+              await this.page.waitForTimeout(2000)
+              break
+            } catch (triggerError) {
+              console.log('Trigger button click failed:', triggerError.message)
+            }
+          }
+        } catch (triggerError) {
+          console.log('No modal trigger buttons found or clickable')
+        }
+
         // Wait for the modal to be visible and interactable
         if (modals.length > 0) {
           console.log('Waiting for modal to become visible...')
@@ -293,57 +318,78 @@ class AutomationServer {
           } catch (error) {
             console.log('Modal did not become visible, trying to activate it...')
             
-            // Try to click on the modal to activate it
+            // Try to activate the modal with JavaScript first (bypass click requirement)
+            console.log('Trying to activate modal with JavaScript...')
             try {
-              // First try to find the specific PIN modal
-              let modal = await this.page.$('#pinCodemyprofile, .pin-modal, .modal.fade')
-              if (!modal) {
-                modal = await this.page.$('.modal, .popup, [role="dialog"]')
-              }
-              
-              if (modal) {
-                console.log('Found modal, attempting to click to activate...')
+              await this.page.evaluate(() => {
+                // Find all modals and try to activate them
+                const modals = document.querySelectorAll('.modal, .popup, [role="dialog"]')
+                console.log(`Found ${modals.length} modals in JavaScript`)
                 
-                // Try different click methods
-                try {
-                  await modal.click()
-                  console.log('Modal clicked with regular click')
-                } catch (clickError) {
-                  console.log('Regular click failed, trying force click...')
-                  await modal.click({ force: true })
-                  console.log('Modal clicked with force click')
-                }
-                
-                console.log('Modal clicked, waiting for it to become active...')
-                await this.page.waitForTimeout(3000)
-                
-                // Try to wait for it to become visible again
-                try {
-                  await this.page.waitForSelector('.modal:not(.ng-hide), .popup:not(.ng-hide), [role="dialog"]:not(.ng-hide)', { 
-                    state: 'visible', 
-                    timeout: 5000 
+                modals.forEach((modal, index) => {
+                  console.log(`Modal ${index}:`, {
+                    id: modal.id,
+                    className: modal.className,
+                    style: modal.style.display,
+                    hidden: modal.hidden,
+                    offsetParent: modal.offsetParent
                   })
-                  console.log('Modal activated and now visible!')
-                } catch (retryError) {
-                  console.log('Modal still not visible after activation attempt')
                   
-                  // Try to trigger the modal with JavaScript
-                  console.log('Trying to trigger modal with JavaScript...')
-                  await this.page.evaluate(() => {
-                    // Try to trigger modal events
-                    const modal = document.querySelector('.modal, .popup, [role="dialog"]')
-                    if (modal) {
-                      modal.style.display = 'block'
-                      modal.classList.remove('ng-hide')
-                      modal.classList.add('show')
-                      modal.classList.remove('fade')
-                    }
-                  })
+                  // Force make modal visible
+                  modal.style.display = 'block'
+                  modal.style.visibility = 'visible'
+                  modal.style.opacity = '1'
+                  modal.classList.remove('ng-hide', 'fade', 'hide')
+                  modal.classList.add('show', 'in')
+                  
+                  // Remove any backdrop or overlay that might be blocking
+                  const backdrop = document.querySelector('.modal-backdrop, .modal-overlay')
+                  if (backdrop) {
+                    backdrop.style.display = 'block'
+                    backdrop.style.opacity = '0.5'
+                  }
+                  
+                  // Try to trigger any Angular events
+                  if (modal.dispatchEvent) {
+                    modal.dispatchEvent(new Event('show'))
+                    modal.dispatchEvent(new Event('shown'))
+                  }
+                })
+                
+                return modals.length
+              })
+              
+              console.log('JavaScript modal activation completed')
+              await this.page.waitForTimeout(2000)
+              
+              // Check if any modal is now visible
+              const visibleModals = await this.page.$$('.modal:not(.ng-hide), .popup:not(.ng-hide), [role="dialog"]:not(.ng-hide)')
+              console.log(`Found ${visibleModals.length} visible modals after JavaScript activation`)
+              
+              if (visibleModals.length === 0) {
+                console.log('No modals visible after JavaScript activation, trying click approach...')
+                
+                // Fallback to click approach
+                const modal = await this.page.$('#pinCodemyprofile, .pin-modal, .modal.fade, .modal, .popup, [role="dialog"]')
+                if (modal) {
+                  console.log('Found modal for click activation...')
+                  
+                  // Try different click methods
+                  try {
+                    await modal.click({ force: true })
+                    console.log('Modal clicked with force click')
+                  } catch (clickError) {
+                    console.log('Force click failed, trying JavaScript click...')
+                    await modal.evaluate((el) => el.click())
+                    console.log('Modal clicked with JavaScript click')
+                  }
+                  
                   await this.page.waitForTimeout(2000)
                 }
               }
-            } catch (clickError) {
-              console.log('Could not click modal:', clickError.message)
+              
+            } catch (jsError) {
+              console.log('JavaScript modal activation failed:', jsError.message)
             }
           }
         }
