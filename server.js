@@ -548,60 +548,149 @@ class AutomationServer {
         console.log('Found PIN modal that is blocking interactions, handling it first...')
         
         try {
-          // Look for PIN input in the modal with more comprehensive selectors
-          console.log('Searching for PIN input with comprehensive selectors...')
-          const pinSelectors = [
-            'input[type="password"]',
-            'input[ng-model*="pin"]',
-            'input[ng-model*="Pin"]',
-            'input[ng-model*="PIN"]',
-            'input[placeholder*="PIN"]',
-            'input[placeholder*="pin"]',
-            'input[placeholder*="Pin"]',
-            'input[name*="pin"]',
-            'input[name*="Pin"]',
-            'input[name*="PIN"]',
-            'input[id*="pin"]',
-            'input[id*="Pin"]',
-            'input[id*="PIN"]',
-            'input[class*="pin"]',
-            'input[class*="Pin"]',
-            'input[class*="PIN"]',
-            'input'
-          ]
+          // Use the same approach as local automation - look for #js-pinmodal first
+          console.log('Looking for PIN modal with local automation approach...')
+          let pinModalElement = await this.page.$('#js-pinmodal')
           
-          let pinInput = null
-          for (const selector of pinSelectors) {
-            try {
-              pinInput = await pinModal.$(selector)
-              if (pinInput) {
-                console.log(`Found PIN input with selector: ${selector}`)
-                break
-              }
-            } catch (e) {
-              // Continue to next selector
-            }
+          if (!pinModalElement) {
+            console.log('#js-pinmodal not found, trying alternative selectors...')
+            pinModalElement = await this.page.$('#pinCodeWhenLock, .pin-modal')
           }
           
-          if (pinInput) {
-            console.log('Found PIN input in modal, filling with PIN...')
-            await pinInput.fill(credentials.pin)
-            console.log('PIN filled successfully')
+          if (pinModalElement) {
+            console.log('Found PIN modal, checking for PIN modal text...')
             
-            // Press Enter to submit PIN
-            await pinInput.press('Enter')
-            console.log('Enter key pressed for PIN submission')
-            
-            // Wait for modal to close
-            await this.page.waitForTimeout(3000)
-            console.log('PIN modal should be closed now')
-            
-            // Check if PIN modal is still visible
-            const stillVisible = await this.page.$('#pinCodeWhenLock, .pin-modal')
-            if (stillVisible) {
-              console.log('PIN modal still visible, trying to close it with JavaScript...')
+            // Check for the specific text "SELECT YOUR NAME AND ENTER YOUR PIN"
+            const modalText = await pinModalElement.textContent()
+            if (modalText && modalText.includes('SELECT YOUR NAME AND ENTER YOUR PIN')) {
+              console.log('Found PIN modal with correct text')
+              
+              // Step 1: Handle user selection dropdown (like local automation)
+              console.log('Looking for user selection dropdown...')
+              const userSelect = await this.page.$('#pinCodeDropDownList')
+              if (userSelect) {
+                console.log('Found user selection dropdown')
+                
+                // Check if a user is already selected
+                const selectedOption = await userSelect.$('option[selected="selected"]')
+                if (selectedOption) {
+                  const selectedText = await selectedOption.textContent()
+                  console.log(`User already selected: "${selectedText}"`)
+                } else {
+                  // Select the first non-empty option (skip the disabled one)
+                  console.log('Selecting first available user...')
+                  await userSelect.selectOption({ index: 1 })
+                  console.log('User selected from dropdown')
+                }
+                
+                await this.page.waitForTimeout(1000)
+              } else {
+                console.log('User selection dropdown not found')
+              }
+              
+              // Step 2: Get PIN input fields using local automation approach
+              console.log('Looking for PIN input fields using local automation selectors...')
+              
+              // Wait a bit for the fields to be ready
+              await this.page.waitForTimeout(1000)
+              
+              // Get all PIN input fields using the same selector as local automation
+              const allPinInputs = await this.page.$$('.pincode-input-container input[type="tel"].form-control.pincode-input-text')
+              console.log(`Found ${allPinInputs.length} PIN input fields`)
+              
+              if (allPinInputs.length >= 10) {
+                // Use fields 5-10 (index 4-9) for the actual PIN input (same as local)
+                const pinInputs = allPinInputs.slice(4, 10)
+                console.log(`Using PIN fields 5-10 (${pinInputs.length} fields)`)
+                
+                // Use PIN from credentials
+                const pinValue = credentials.pin || '000000'
+                console.log(`Using PIN: ${pinValue ? '***' : 'default'}`)
+                
+                // Fill the 6 PIN input fields using the same method as local automation
+                for (let i = 0; i < 6; i++) {
+                  const digit = pinValue[i] || '0'
+                  console.log(`Filling PIN field ${i + 5} with digit: ${digit}`)
+                  
+                  try {
+                    // Method 1: Direct value setting with focus (same as local)
+                    await pinInputs[i].focus()
+                    await this.page.waitForTimeout(100)
+                    
+                    // Clear and set value directly
+                    await pinInputs[i].evaluate((input, value) => {
+                      input.value = ''
+                      input.value = value
+                    }, digit)
+                    
+                    // Trigger all necessary events
+                    await pinInputs[i].evaluate((input) => {
+                      input.dispatchEvent(new Event('focus', { bubbles: true }))
+                      input.dispatchEvent(new Event('input', { bubbles: true }))
+                      input.dispatchEvent(new Event('change', { bubbles: true }))
+                      input.dispatchEvent(new Event('blur', { bubbles: true }))
+                    })
+                    
+                    console.log(`Successfully filled field ${i + 5} with: ${digit}`)
+                    
+                  } catch (error) {
+                    console.log(`Error with method 1 for field ${i + 5}, trying method 2...`)
+                    
+                    try {
+                      // Method 2: Click and type
+                      await pinInputs[i].click()
+                      await this.page.waitForTimeout(100)
+                      await pinInputs[i].fill(digit, { force: true })
+                      console.log(`Successfully filled field ${i + 5} with method 2`)
+                    } catch (error2) {
+                      console.log(`Error with method 2 for field ${i + 5}, trying method 3...`)
+                      
+                      // Method 3: JavaScript keyboard simulation
+                      await pinInputs[i].evaluate((input, value) => {
+                        input.focus()
+                        input.value = value
+                        input.dispatchEvent(new KeyboardEvent('keydown', { key: value, bubbles: true }))
+                        input.dispatchEvent(new KeyboardEvent('keyup', { key: value, bubbles: true }))
+                        input.dispatchEvent(new Event('input', { bubbles: true }))
+                        input.dispatchEvent(new Event('change', { bubbles: true }))
+                      }, digit)
+                      console.log(`Successfully filled field ${i + 5} with method 3`)
+                    }
+                  }
+                  
+                  await this.page.waitForTimeout(200) // Delay between fields
+                }
+                
+                console.log('PIN input completed')
+                await this.page.waitForTimeout(1000)
+                
+                // Step 3: Press Enter key to submit PIN (same as local)
+                console.log('Pressing Enter key to submit PIN...')
+                await this.page.keyboard.press('Enter')
+                console.log('Enter key pressed for PIN submission')
+                
+                await this.page.waitForTimeout(2000)
+                console.log('PIN modal should be closed now')
+              } else {
+                console.log(`Insufficient PIN input fields found (${allPinInputs.length}, need at least 10)`)
+                
+                // Fallback: try to close modal
+                await this.page.evaluate(() => {
+                  const pinModal = document.querySelector('#js-pinmodal, #pinCodeWhenLock, .pin-modal')
+                  if (pinModal) {
+                    pinModal.style.display = 'none'
+                    pinModal.classList.remove('show', 'in')
+                    pinModal.classList.add('hide')
+                  }
+                })
+                await this.page.waitForTimeout(1000)
+              }
+            } else {
+              console.log('PIN modal text not found or incorrect')
+              
+              // Fallback: try to close modal
               await this.page.evaluate(() => {
-                const pinModal = document.querySelector('#pinCodeWhenLock, .pin-modal')
+                const pinModal = document.querySelector('#js-pinmodal, #pinCodeWhenLock, .pin-modal')
                 if (pinModal) {
                   pinModal.style.display = 'none'
                   pinModal.classList.remove('show', 'in')
@@ -611,25 +700,7 @@ class AutomationServer {
               await this.page.waitForTimeout(1000)
             }
           } else {
-            console.log('No PIN input found in PIN modal, forcing modal to close...')
-            
-            // Force close the modal since we can't find PIN input
-            await this.page.evaluate(() => {
-              const pinModal = document.querySelector('#pinCodeWhenLock, .pin-modal')
-              if (pinModal) {
-                pinModal.style.display = 'none'
-                pinModal.classList.remove('show', 'in')
-                pinModal.classList.add('hide')
-                
-                // Also try to remove backdrop
-                const backdrop = document.querySelector('.modal-backdrop')
-                if (backdrop) {
-                  backdrop.remove()
-                }
-              }
-            })
-            await this.page.waitForTimeout(1000)
-            console.log('PIN modal force-closed')
+            console.log('No PIN modal found')
           }
         } catch (pinError) {
           console.log('Error handling PIN modal:', pinError.message)
@@ -637,7 +708,7 @@ class AutomationServer {
           // Fallback: force close modal on any error
           console.log('Force closing PIN modal due to error...')
           await this.page.evaluate(() => {
-            const pinModal = document.querySelector('#pinCodeWhenLock, .pin-modal')
+            const pinModal = document.querySelector('#js-pinmodal, #pinCodeWhenLock, .pin-modal')
             if (pinModal) {
               pinModal.style.display = 'none'
               pinModal.classList.remove('show', 'in')
