@@ -366,6 +366,34 @@ class AutomationServer {
               const visibleModals = await this.page.$$('.modal:not(.ng-hide), .popup:not(.ng-hide), [role="dialog"]:not(.ng-hide)')
               console.log(`Found ${visibleModals.length} visible modals after JavaScript activation`)
               
+              // If modals are visible, check if they're blocking interactions
+              if (visibleModals.length > 0) {
+                console.log('Checking if modals are blocking interactions...')
+                
+                // Try to close any blocking modals first
+                for (const modal of visibleModals) {
+                  try {
+                    const modalId = await modal.getAttribute('id')
+                    const modalClass = await modal.getAttribute('class')
+                    console.log(`Checking modal: ${modalId} (${modalClass})`)
+                    
+                    // Look for close buttons in the modal
+                    const closeButtons = await modal.$$('button.close, .close, [aria-label="Close"], [data-dismiss="modal"]')
+                    console.log(`Found ${closeButtons.length} close buttons in modal`)
+                    
+                    if (closeButtons.length > 0) {
+                      console.log('Attempting to close modal...')
+                      await closeButtons[0].click()
+                      console.log('Modal close button clicked')
+                      await this.page.waitForTimeout(1000)
+                      break
+                    }
+                  } catch (closeError) {
+                    console.log('Could not close modal:', closeError.message)
+                  }
+                }
+              }
+              
               if (visibleModals.length === 0) {
                 console.log('No modals visible after JavaScript activation, trying click approach...')
                 
@@ -482,17 +510,49 @@ class AutomationServer {
       const visibleModal = await this.page.$('.modal:not(.ng-hide), .popup:not(.ng-hide), [role="dialog"]:not(.ng-hide)')
       if (visibleModal) {
         console.log('Found visible modal, looking for payment input inside modal...')
-        // Wait for payment input to be visible in the modal
-        try {
-          await this.page.waitForSelector('.modal #paymentInput:not(.ng-hide), .popup #paymentInput:not(.ng-hide), [role="dialog"] #paymentInput:not(.ng-hide)', { 
-            state: 'visible',
-            timeout: 10000 
-          })
-          console.log('Found payment input in modal, selecting RENEWAL...')
-          await this.page.selectOption('.modal #paymentInput, .popup #paymentInput, [role="dialog"] #paymentInput', 'RENEWAL')
-          console.log('Payment method selected successfully in modal')
-        } catch (modalError) {
-          console.log('Payment input not found in modal, trying main page...')
+        
+        // Check if this is a PIN modal that needs to be handled differently
+        const modalId = await visibleModal.getAttribute('id')
+        const modalClass = await visibleModal.getAttribute('class')
+        console.log(`Modal details: ID="${modalId}", Class="${modalClass}"`)
+        
+        if (modalId && modalId.includes('pinCode')) {
+          console.log('This appears to be a PIN modal, looking for PIN input instead of payment...')
+          
+          // Look for PIN input in the modal
+          try {
+            const pinInput = await visibleModal.$('input[type="password"], input[ng-model*="pin"], input[ng-model*="Pin"], input[placeholder*="PIN"], input[placeholder*="pin"]')
+            if (pinInput) {
+              console.log('Found PIN input in modal, filling with PIN...')
+              await pinInput.fill(credentials.pin)
+              console.log('PIN filled successfully')
+              
+              // Press Enter to submit PIN
+              await pinInput.press('Enter')
+              console.log('Enter key pressed for PIN submission')
+              
+              // Wait for modal to close
+              await this.page.waitForTimeout(2000)
+              console.log('PIN modal should be closed now')
+            } else {
+              console.log('No PIN input found in modal')
+            }
+          } catch (pinError) {
+            console.log('Error handling PIN modal:', pinError.message)
+          }
+        } else {
+          // Regular payment modal handling
+          try {
+            await this.page.waitForSelector('.modal #paymentInput:not(.ng-hide), .popup #paymentInput:not(.ng-hide), [role="dialog"] #paymentInput:not(.ng-hide)', { 
+              state: 'visible',
+              timeout: 10000 
+            })
+            console.log('Found payment input in modal, selecting RENEWAL...')
+            await this.page.selectOption('.modal #paymentInput, .popup #paymentInput, [role="dialog"] #paymentInput', 'RENEWAL')
+            console.log('Payment method selected successfully in modal')
+          } catch (modalError) {
+            console.log('Payment input not found in modal, trying main page...')
+          }
         }
       }
       
