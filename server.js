@@ -548,8 +548,41 @@ class AutomationServer {
         console.log('Found PIN modal that is blocking interactions, handling it first...')
         
         try {
-          // Look for PIN input in the modal
-          const pinInput = await pinModal.$('input[type="password"], input[ng-model*="pin"], input[ng-model*="Pin"], input[placeholder*="PIN"], input[placeholder*="pin"]')
+          // Look for PIN input in the modal with more comprehensive selectors
+          console.log('Searching for PIN input with comprehensive selectors...')
+          const pinSelectors = [
+            'input[type="password"]',
+            'input[ng-model*="pin"]',
+            'input[ng-model*="Pin"]',
+            'input[ng-model*="PIN"]',
+            'input[placeholder*="PIN"]',
+            'input[placeholder*="pin"]',
+            'input[placeholder*="Pin"]',
+            'input[name*="pin"]',
+            'input[name*="Pin"]',
+            'input[name*="PIN"]',
+            'input[id*="pin"]',
+            'input[id*="Pin"]',
+            'input[id*="PIN"]',
+            'input[class*="pin"]',
+            'input[class*="Pin"]',
+            'input[class*="PIN"]',
+            'input'
+          ]
+          
+          let pinInput = null
+          for (const selector of pinSelectors) {
+            try {
+              pinInput = await pinModal.$(selector)
+              if (pinInput) {
+                console.log(`Found PIN input with selector: ${selector}`)
+                break
+              }
+            } catch (e) {
+              // Continue to next selector
+            }
+          }
+          
           if (pinInput) {
             console.log('Found PIN input in modal, filling with PIN...')
             await pinInput.fill(credentials.pin)
@@ -578,10 +611,40 @@ class AutomationServer {
               await this.page.waitForTimeout(1000)
             }
           } else {
-            console.log('No PIN input found in PIN modal')
+            console.log('No PIN input found in PIN modal, forcing modal to close...')
+            
+            // Force close the modal since we can't find PIN input
+            await this.page.evaluate(() => {
+              const pinModal = document.querySelector('#pinCodeWhenLock, .pin-modal')
+              if (pinModal) {
+                pinModal.style.display = 'none'
+                pinModal.classList.remove('show', 'in')
+                pinModal.classList.add('hide')
+                
+                // Also try to remove backdrop
+                const backdrop = document.querySelector('.modal-backdrop')
+                if (backdrop) {
+                  backdrop.remove()
+                }
+              }
+            })
+            await this.page.waitForTimeout(1000)
+            console.log('PIN modal force-closed')
           }
         } catch (pinError) {
           console.log('Error handling PIN modal:', pinError.message)
+          
+          // Fallback: force close modal on any error
+          console.log('Force closing PIN modal due to error...')
+          await this.page.evaluate(() => {
+            const pinModal = document.querySelector('#pinCodeWhenLock, .pin-modal')
+            if (pinModal) {
+              pinModal.style.display = 'none'
+              pinModal.classList.remove('show', 'in')
+              pinModal.classList.add('hide')
+            }
+          })
+          await this.page.waitForTimeout(1000)
         }
       } else {
         console.log('No PIN modal found, proceeding with normal flow...')
