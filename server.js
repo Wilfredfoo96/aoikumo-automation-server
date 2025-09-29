@@ -594,14 +594,47 @@ class AutomationServer {
               // Wait a bit for the fields to be ready
               await this.page.waitForTimeout(1000)
               
-              // Get all PIN input fields using the same selector as local automation
-              const allPinInputs = await this.page.$$('.pincode-input-container input[type="tel"].form-control.pincode-input-text')
-              console.log(`Found ${allPinInputs.length} PIN input fields`)
+              // Get all PIN input fields using multiple selectors (Railway might have different structure)
+              console.log('Searching for PIN input fields with multiple selectors...')
+              let allPinInputs = await this.page.$$('.pincode-input-container input[type="tel"].form-control.pincode-input-text')
+              console.log(`Found ${allPinInputs.length} PIN input fields with primary selector`)
               
-              if (allPinInputs.length >= 10) {
-                // Use fields 5-10 (index 4-9) for the actual PIN input (same as local)
-                const pinInputs = allPinInputs.slice(4, 10)
-                console.log(`Using PIN fields 5-10 (${pinInputs.length} fields)`)
+              if (allPinInputs.length < 10) {
+                console.log('Trying alternative PIN input selectors...')
+                const alternativeSelectors = [
+                  '.pincode-input-text',
+                  'input[type="tel"]',
+                  'input[class*="pincode"]',
+                  'input[class*="pin"]',
+                  'input[ng-model*="pin"]',
+                  'input[placeholder*="PIN"]',
+                  'input[placeholder*="pin"]'
+                ]
+                
+                for (const selector of alternativeSelectors) {
+                  const altInputs = await this.page.$$(selector)
+                  console.log(`Found ${altInputs.length} inputs with selector: ${selector}`)
+                  if (altInputs.length > allPinInputs.length) {
+                    allPinInputs = altInputs
+                    console.log(`Using ${altInputs.length} inputs from selector: ${selector}`)
+                  }
+                }
+              }
+              
+              console.log(`Total PIN input fields found: ${allPinInputs.length}`)
+              
+              if (allPinInputs.length >= 6) {
+                // Determine which fields to use based on available count
+                let pinInputs
+                if (allPinInputs.length >= 10) {
+                  // Use fields 5-10 (index 4-9) for the actual PIN input (same as local)
+                  pinInputs = allPinInputs.slice(4, 10)
+                  console.log(`Using PIN fields 5-10 (${pinInputs.length} fields)`)
+                } else {
+                  // Use the last 6 fields if we have fewer than 10 total
+                  pinInputs = allPinInputs.slice(-6)
+                  console.log(`Using last 6 PIN fields (${pinInputs.length} fields)`)
+                }
                 
                 // Use PIN from credentials
                 const pinValue = credentials.pin || '000000'
@@ -671,8 +704,42 @@ class AutomationServer {
                 
                 await this.page.waitForTimeout(2000)
                 console.log('PIN modal should be closed now')
+              } else if (allPinInputs.length >= 1) {
+                console.log(`Found ${allPinInputs.length} PIN input fields, trying to fill them...`)
+                
+                // Use whatever fields we have
+                const pinValue = credentials.pin || '000000'
+                console.log(`Using PIN: ${pinValue ? '***' : 'default'}`)
+                
+                // Fill the available fields
+                for (let i = 0; i < Math.min(allPinInputs.length, pinValue.length); i++) {
+                  const digit = pinValue[i] || '0'
+                  console.log(`Filling PIN field ${i + 1} with digit: ${digit}`)
+                  
+                  try {
+                    await allPinInputs[i].focus()
+                    await this.page.waitForTimeout(100)
+                    await allPinInputs[i].fill(digit, { force: true })
+                    console.log(`Successfully filled field ${i + 1}`)
+                  } catch (error) {
+                    console.log(`Error filling field ${i + 1}:`, error.message)
+                  }
+                  
+                  await this.page.waitForTimeout(200)
+                }
+                
+                console.log('PIN input completed with available fields')
+                await this.page.waitForTimeout(1000)
+                
+                // Press Enter key to submit PIN
+                console.log('Pressing Enter key to submit PIN...')
+                await this.page.keyboard.press('Enter')
+                console.log('Enter key pressed for PIN submission')
+                
+                await this.page.waitForTimeout(2000)
+                console.log('PIN modal should be closed now')
               } else {
-                console.log(`Insufficient PIN input fields found (${allPinInputs.length}, need at least 10)`)
+                console.log(`No PIN input fields found (${allPinInputs.length})`)
                 
                 // Fallback: try to close modal
                 await this.page.evaluate(() => {
@@ -684,6 +751,7 @@ class AutomationServer {
                   }
                 })
                 await this.page.waitForTimeout(1000)
+                console.log('PIN modal force-closed')
               }
             } else {
               console.log('PIN modal text not found or incorrect')
