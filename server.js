@@ -366,30 +366,75 @@ class AutomationServer {
               const visibleModals = await this.page.$$('.modal:not(.ng-hide), .popup:not(.ng-hide), [role="dialog"]:not(.ng-hide)')
               console.log(`Found ${visibleModals.length} visible modals after JavaScript activation`)
               
-              // If modals are visible, check if they're blocking interactions
+              // If modals are visible, handle PIN modal first (it's blocking all interactions)
               if (visibleModals.length > 0) {
                 console.log('Checking if modals are blocking interactions...')
                 
-                // Try to close any blocking modals first
-                for (const modal of visibleModals) {
+                // First, look for the PIN modal specifically (it's blocking everything)
+                const pinModal = await this.page.$('#pinCodeWhenLock, .pin-modal')
+                if (pinModal) {
+                  console.log('Found PIN modal that is blocking interactions, handling it first...')
+                  
                   try {
-                    const modalId = await modal.getAttribute('id')
-                    const modalClass = await modal.getAttribute('class')
-                    console.log(`Checking modal: ${modalId} (${modalClass})`)
-                    
-                    // Look for close buttons in the modal
-                    const closeButtons = await modal.$$('button.close, .close, [aria-label="Close"], [data-dismiss="modal"]')
-                    console.log(`Found ${closeButtons.length} close buttons in modal`)
-                    
-                    if (closeButtons.length > 0) {
-                      console.log('Attempting to close modal...')
-                      await closeButtons[0].click()
-                      console.log('Modal close button clicked')
-                      await this.page.waitForTimeout(1000)
-                      break
+                    // Look for PIN input in the modal
+                    const pinInput = await pinModal.$('input[type="password"], input[ng-model*="pin"], input[ng-model*="Pin"], input[placeholder*="PIN"], input[placeholder*="pin"]')
+                    if (pinInput) {
+                      console.log('Found PIN input in modal, filling with PIN...')
+                      await pinInput.fill(credentials.pin)
+                      console.log('PIN filled successfully')
+                      
+                      // Press Enter to submit PIN
+                      await pinInput.press('Enter')
+                      console.log('Enter key pressed for PIN submission')
+                      
+                      // Wait for modal to close
+                      await this.page.waitForTimeout(3000)
+                      console.log('PIN modal should be closed now')
+                      
+                      // Check if PIN modal is still visible
+                      const stillVisible = await this.page.$('#pinCodeWhenLock, .pin-modal')
+                      if (stillVisible) {
+                        console.log('PIN modal still visible, trying to close it with JavaScript...')
+                        await this.page.evaluate(() => {
+                          const pinModal = document.querySelector('#pinCodeWhenLock, .pin-modal')
+                          if (pinModal) {
+                            pinModal.style.display = 'none'
+                            pinModal.classList.remove('show', 'in')
+                            pinModal.classList.add('hide')
+                          }
+                        })
+                        await this.page.waitForTimeout(1000)
+                      }
+                    } else {
+                      console.log('No PIN input found in PIN modal')
                     }
-                  } catch (closeError) {
-                    console.log('Could not close modal:', closeError.message)
+                  } catch (pinError) {
+                    console.log('Error handling PIN modal:', pinError.message)
+                  }
+                } else {
+                  console.log('No PIN modal found, trying to close other modals...')
+                  
+                  // Try to close any other blocking modals
+                  for (const modal of visibleModals) {
+                    try {
+                      const modalId = await modal.getAttribute('id')
+                      const modalClass = await modal.getAttribute('class')
+                      console.log(`Checking modal: ${modalId} (${modalClass})`)
+                      
+                      // Look for close buttons in the modal
+                      const closeButtons = await modal.$$('button.close, .close, [aria-label="Close"], [data-dismiss="modal"]')
+                      console.log(`Found ${closeButtons.length} close buttons in modal`)
+                      
+                      if (closeButtons.length > 0) {
+                        console.log('Attempting to close modal...')
+                        await closeButtons[0].click()
+                        console.log('Modal close button clicked')
+                        await this.page.waitForTimeout(1000)
+                        break
+                      }
+                    } catch (closeError) {
+                      console.log('Could not close modal:', closeError.message)
+                    }
                   }
                 }
               }
